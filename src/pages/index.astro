@@ -1,0 +1,27 @@
+---
+import Base from '../layouts/Base.astro';
+import Calculator from '../components/Calculator.astro';
+import { PAIRS, label } from '../lib/position';
+const faq = [
+  { q: 'How is position size calculated?', a: 'Risk amount (balance times risk percent) divided by the stop loss distance in account currency per unit. Lotline rounds down to 0.01 lot so your real risk never exceeds your plan.' },
+  { q: 'Where does the exchange rate come from?', a: 'The European Central Bank daily reference rate via Frankfurter. It is not a live tick price, so you can overwrite it with your broker rate.' },
+  { q: 'What risk per trade is sensible?', a: 'Many traders risk 0.5% to 2% of their account per trade. Anything above 5% is very aggressive. This is education, not advice.' },
+];
+---
+<Base title="Forex position size calculator: lots from risk and stop loss | Lotline" description="Free forex position size calculator. Enter balance, risk percent and stop loss in pips to get lot size, pip value and take profit for 28 pairs." faq={faq}>
+  <header class="wrap" style="padding-top:1.25rem;padding-bottom:1.25rem"><strong style="font-family:var(--serif);font-size:1.4rem">Lotline</strong> <a href="/guide/how-to-calculate-position-size/" style="float:right">Guide</a></header>
+  <main id="main" class="wrap" style="padding-bottom:3rem">
+    <h1 style="margin:1.5rem 0 .75rem"><span class="va">Forex position size calculator</span><span class="vb">Know your lot size before you enter</span></h1>
+    <p style="color:var(--muted);max-width:38rem;margin:0 0 2rem">Set your risk, enter your stop loss, and get the exact lot size. No signup, nothing stored.</p>
+    <Calculator />
+    <section style="padding:3rem 0 0;margin-top:3rem"><h2>Calculator by pair</h2>
+      <p style="display:flex;flex-wrap:wrap;gap:.5rem 1rem">{PAIRS.map(p => <a href={`/position-size-calculator/${p.toLowerCase()}/`}>{label(p)}</a>)}</p></section>
+    <section style="padding:3rem 0 0;margin-top:3rem"><h2>Questions</h2>
+      {faq.map(f => <details style="padding:.75rem 0;border-bottom:1px solid var(--grid)"><summary style="cursor:pointer;font-weight:600">{f.q}</summary><p style="margin:.5rem 0 0;color:var(--muted)">{f.a}</p></details>)}</section>
+  </main>
+  <footer class="wrap" style="padding:2rem 1.25rem;color:var(--muted);font-size:.9rem;border-top:1px solid var(--grid)">Educational tool, not financial advice. Trading leveraged products carries a high risk of loss. Results depend on the rate and inputs you provide.</footer>
+  <script>
+    import { track } from '../lib/analytics';
+    document.querySelectorAll('details').forEach(d => d.addEventListener('toggle', () => { if ((d as HTMLDetailsElement).open) track('faq_open', { question: d.querySelector('summary')!.textContent! }); }));
+  </script>
+</Base>

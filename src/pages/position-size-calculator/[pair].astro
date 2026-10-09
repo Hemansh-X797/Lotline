@@ -1,0 +1,17 @@
+---
+import Base from '../../layouts/Base.astro';
+import Calculator from '../../components/Calculator.astro';
+import { PAIRS, label, pairInfo } from '../../lib/position';
+export const getStaticPaths = () => PAIRS.map(p => ({ params: { pair: p.toLowerCase() }, props: { pair: p } }));
+const { pair } = Astro.props; const l = label(pair); const pip = pairInfo(pair).pip;
+---
+<Base title={`${l} position size calculator | Lotline`} description={`Calculate your ${l} lot size from account risk and stop loss. One pip on ${l} is ${pip}. Free, no signup.`}>
+  <header class="wrap" style="padding-top:1.25rem;padding-bottom:1.25rem"><a href="/" style="font-family:var(--serif);font-size:1.4rem;font-weight:700;text-decoration:none">Lotline</a></header>
+  <main id="main" class="wrap" style="padding-bottom:3rem">
+    <h1 style="margin:1.5rem 0 .75rem">{l} position size calculator</h1>
+    <p style="color:var(--muted);max-width:38rem;margin:0 0 2rem">One pip on {l} is {pip}. Enter your risk and stop loss to get the lot size.</p>
+    <Calculator pair={pair} />
+    <p style="margin-top:2rem"><a href="/">All pairs</a></p>
+  </main>
+  <footer class="wrap" style="padding:2rem 1.25rem;color:var(--muted);font-size:.9rem;border-top:1px solid var(--grid)">Educational tool, not financial advice. Trading leveraged products carries a high risk of loss.</footer>
+</Base>

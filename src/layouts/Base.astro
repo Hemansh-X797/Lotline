@@ -1,0 +1,65 @@
+---
+const { title, description, faq = [] as { q: string; a: string }[] } = Astro.props;
+const url = new URL(Astro.url.pathname, Astro.site).href;
+const ld = [
+  { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'Lotline', applicationCategory: 'FinanceApplication', operatingSystem: 'Web', description, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' } },
+  { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map((f: any) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) },
+];
+const ldOut = ld.filter((x: any) => x['@type'] !== 'FAQPage' || faq.length);
+---
+<!doctype html>
+<html lang="en" data-hero="A">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <link rel="canonical" href={url} />
+  <meta property="og:title" content={title} /><meta property="og:description" content={description} />
+  <meta property="og:type" content="website" /><meta property="og:url" content={url} />
+  <meta name="theme-color" content="#EEF1EC" />
+  <script is:inline>
+    // Runs before first paint: sticky 50/50 bucket, QA override via ?exp_hero=A|B. No flicker.
+    (function () {
+      var v, q = new URLSearchParams(location.search).get('exp_hero');
+      try { v = q === 'A' || q === 'B' ? q : localStorage.getItem('ll_exp_hero'); } catch (e) {}
+      if (v !== 'A' && v !== 'B') v = Math.random() < 0.5 ? 'A' : 'B';
+      try { localStorage.setItem('ll_exp_hero', v); } catch (e) {}
+      document.documentElement.dataset.hero = v;
+    })();
+  </script>
+  <script type="application/ld+json" set:html={JSON.stringify(ldOut)} />
+  <style is:global>
+    :root { --paper:#EEF1EC; --ink:#14201B; --muted:#4D5B54; --grid:#D5DCD3; --bull:#1F7A5C; --bear:#C2452D;
+      --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+    *{box-sizing:border-box} html{scroll-behavior:smooth}
+    body{margin:0;background:var(--paper);color:var(--ink);font:1.0625rem/1.6 var(--sans)}
+    a{color:inherit} :focus-visible{outline:3px solid var(--bull);outline-offset:3px}
+    .skip{position:absolute;left:-999px} .skip:focus{left:1rem;top:1rem;background:#fff;padding:.5rem 1rem;z-index:9}
+    .wrap{max-width:68rem;margin:0 auto;padding:0 1.25rem}
+    h1,h2{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;line-height:1.1;margin:0}
+    h1{font-size:clamp(2.4rem,6vw,4.4rem);max-width:15ch} h2{font-size:clamp(1.7rem,3.5vw,2.5rem)}
+    .btn{display:inline-block;padding:.85rem 1.4rem;background:var(--ink);color:var(--paper);border:0;border-radius:.4rem;font:600 1rem var(--sans);text-decoration:none;cursor:pointer}
+    .btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink)}
+    section{padding:4.5rem 0;border-top:1px solid var(--grid)}
+    [data-hero="A"] .vb,[data-hero="B"] .va{display:none}
+    @media (prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <slot />
+  <div id="consent" hidden style="position:fixed;inset:auto 1rem 1rem 1rem;max-width:30rem;background:#fff;border:2px solid var(--ink);padding:1rem;border-radius:.5rem;z-index:10">
+    <p style="margin:0 0 .75rem;font-size:.95rem">We use analytics cookies to learn which pages help people. Nothing loads until you choose.</p>
+    <button class="btn" id="c-yes">Accept analytics</button> <button class="btn ghost" id="c-no">No thanks</button>
+  </div>
+  <script>
+    import { init, consent, setConsent } from '../lib/analytics';
+    init();
+    const box = document.getElementById('consent')!;
+    if (!consent()) box.hidden = false;
+    document.getElementById('c-yes')!.onclick = () => { setConsent('granted'); box.hidden = true; };
+    document.getElementById('c-no')!.onclick = () => { setConsent('denied'); box.hidden = true; };
+  </script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+---
+import { PAIRS, ACCOUNT_CCY, label } from '../lib/position';
+const { pair = 'EURUSD' } = Astro.props;
+const f = 'padding:.7rem;border:2px solid var(--ink);border-radius:.4rem;font:inherit;background:#fff;width:100%';
+---
+<div id="calc" data-pair={pair} style="display:grid;gap:2rem;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr))">
+  <div style="display:grid;gap:1rem;align-content:start">
+    <label>Currency pair<select id="pair" style={f}>{PAIRS.map(p => <option value={p} selected={p === pair}>{label(p)}</option>)}</select></label>
+    <label>Account currency<select id="acct" style={f}>{ACCOUNT_CCY.map(c => <option>{c}</option>)}</select></label>
+    <label>Account balance<input id="bal" type="number" inputmode="decimal" min="0" value="10000" style={f} /></label>
+    <label>Risk per trade (%)<input id="risk" type="number" inputmode="decimal" step="0.1" value="1" style={f} /></label>
+    <label>Stop loss (pips)<input id="stop" type="number" inputmode="decimal" value="20" style={f} /></label>
+    <label>Reward:risk ratio (optional)<input id="rr" type="number" inputmode="decimal" step="0.5" value="2" style={f} /></label>
+    <label>Entry price (optional, for margin)<input id="entry" type="number" inputmode="decimal" step="any" style={f} /></label>
+    <label>Leverage, e.g. 30 for 1:30 (optional)<input id="lev" type="number" inputmode="decimal" value="30" style={f} /></label>
+    <label>Exchange rate, quote to account <small id="rsrc" style="color:var(--muted)"></small><input id="rate" type="number" inputmode="decimal" step="any" style={f} /></label>
+  </div>
+  <div aria-live="polite" style="background:#fff;border:2px solid var(--ink);border-radius:.5rem;padding:1.5rem;align-self:start">
+    <p id="err" role="alert" hidden style="color:var(--bear);font-weight:600;margin:0"></p>
+    <div id="out">
+      <p style="margin:0;color:var(--muted)">Position size</p>
+      <p style="margin:0;font:600 3rem/1.1 var(--serif)"><span id="lots">-</span> lots</p>
+      <dl style="display:grid;grid-template-columns:1fr auto;gap:.4rem 1rem;margin:1rem 0">
+        <dt>Units</dt><dd id="units" style="margin:0"></dd><dt>Amount at risk</dt><dd id="actual" style="margin:0"></dd>
+        <dt>Pip value per lot</dt><dd id="pv" style="margin:0"></dd><dt>Take profit</dt><dd id="tp" style="margin:0"></dd><dt>Potential reward</dt><dd id="rw" style="margin:0"></dd><dt>Margin required</dt><dd id="mg" style="margin:0"></dd>
+      </dl>
+      <p id="warn" hidden style="color:var(--bear);margin:0 0 1rem"></p>
+      <button class="btn" id="copy" type="button">Copy result</button> <button class="btn ghost" id="share" type="button">Copy link</button>
+      <h2 style="font-size:1.15rem;margin:1.75rem 0 .5rem">If you lose several in a row</h2>
+      <table id="streak" style="width:100%;border-collapse:collapse;font-size:.95rem"></table>
+    </div>
+  </div>
+</div>
+<script>
+  import { calculate, drawdownTable, pairInfo, rateUrl } from '../lib/position';
+  import { track } from '../lib/analytics';
+  const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+  const root = document.getElementById('calc')!;
+  let rateManual = false, last = '', t: any;
+  const KEYS = [['pair', 'p'], ['acct', 'a'], ['bal', 'b'], ['risk', 'r'], ['stop', 's'], ['rr', 'x'], ['entry', 'e'], ['lev', 'l']];
+  const num = (id: string) => parseFloat($(id).value);
+  async function loadRate() {
+    const { quote } = pairInfo($('pair').value), acct = $('acct').value;
+    if (quote === acct) { $('rate').value = '1'; $('rsrc').textContent = '(same currency)'; return run(); }
+    const key = `rate_${quote}_${acct}`;
+    try {
+      const c = sessionStorage.getItem(key);
+      const d = c ? JSON.parse(c) : await (await fetch(rateUrl(quote, acct))).json();
+      if (!c) sessionStorage.setItem(key, JSON.stringify(d));
+      $('rate').value = String(d.rates[acct]); $('rsrc').textContent = `(ECB daily rate, ${d.date})`; rateManual = false;
+    } catch { $('rsrc').textContent = '(live rate unavailable, enter it manually)'; track('rate_fallback', { reason: 'fetch_failed' }); }
+    run();
+  }
+  const money = (n: number) => `${n.toFixed(2)} ${$('acct').value}`;
+  function run() {
+    const r = calculate({ balance: num('bal'), riskPct: num('risk'), stopPips: num('stop'), pair: $('pair').value, quoteToAccount: num('rate'), rr: num('rr'), entry: num('entry'), leverage: num('lev') });
+    const err = document.getElementById('err')!, out = document.getElementById('out')!;
+    err.hidden = r.ok; out.hidden = !r.ok;
+    if (!r.ok) { err.textContent = r.error; return; }
+    document.getElementById('lots')!.textContent = r.lots.toFixed(2);
+    document.getElementById('units')!.textContent = r.units.toLocaleString();
+    document.getElementById('actual')!.textContent = money(r.actualRisk);
+    document.getElementById('pv')!.textContent = money(r.pipValuePerLot);
+    document.getElementById('tp')!.textContent = r.targetPips ? `${r.targetPips.toFixed(1)} pips` : '-';
+    document.getElementById('rw')!.textContent = r.reward ? money(r.reward) : '-';
+    const w = document.getElementById('warn')!; w.hidden = !r.warning; w.textContent = r.warning || '';
+    document.getElementById('mg')!.textContent = r.margin ? money(r.margin) : 'add entry price';
+    document.getElementById('streak')!.innerHTML = '<tr><th align="left">Losses</th><th align="right">Drawdown</th><th align="right">To recover</th></tr>' +
+      drawdownTable(num('risk')).map(d => `<tr><td>${d.n}</td><td align="right">${d.drawdownPct.toFixed(1)}%</td><td align="right">${d.recoveryPct.toFixed(1)}%</td></tr>`).join('');
+    history.replaceState(null, '', '?' + new URLSearchParams(Object.fromEntries(KEYS.map(([id, k]) => [k, $(id).value]))));
+    clearTimeout(t); t = setTimeout(() => { const k = $('pair').value + $('acct').value; if (k !== last) { last = k; track('calc_result', { pair: $('pair').value, account_ccy: $('acct').value }); } }, 1500);
+  }
+  ['bal', 'risk', 'stop', 'rr', 'rate'].forEach(id => $(id).addEventListener('input', run));
+  ['pair', 'acct'].forEach(id => $(id).addEventListener('change', loadRate));
+  $('copy').addEventListener('click', async () => {
+    const txt = `${$('pair').value}: ${document.getElementById('lots')!.textContent} lots (${document.getElementById('units')!.textContent} units), risk ${document.getElementById('actual')!.textContent}, stop ${$('stop').value} pips`;
+    try { await navigator.clipboard.writeText(txt); $('copy').textContent = 'Copied'; } catch { $('copy').textContent = 'Copy failed'; }
+    track('copy_result', { pair: $('pair').value });
+  });
+  $('share').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(location.href); $('share').textContent = 'Link copied'; } catch { $('share').textContent = 'Copy failed'; }
+    track('share_link', { pair: $('pair').value });
+  });
+  const sp = new URLSearchParams(location.search);
+  KEYS.forEach(([id, k]) => { const v = sp.get(k); if (v !== null) $(id).value = v; });
+  loadRate();
+</script>
